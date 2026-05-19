@@ -12,11 +12,8 @@ import matplotlib.pyplot as plt
 from draw import Draw_MPC_point_stabilization_v1
 
 if __name__ == "__main__":
-    initial_states = [[-2.0, 0.0, 0.0], [2.0, 0.0, -np.pi], [-1.0, -2.0, -np.pi/2], [-1.0, 2.0, -np.pi/2], [1.0, -2.0, np.pi/2], [1.0, 2.0, -np.pi/2], [0.0, -2.0, np.pi/2], [0.0, 2.0, np.pi/2], [-2.0, -1.0, 0.0], [2.0, -1.0, np.pi], [-2.0, 1.0, 0.0], [2.0, 1.0, np.pi]]
-    final_states = [[2.0, 0.0, 0.0], [-2.0, 0.0, -np.pi], [-1.0, 2.0, -np.pi/2], [-1.0, -2.0, -np.pi/2], [1.0, 2.0, -np.pi/2], [1.0, -2.0, np.pi/2], [0.0, 2.0, np.pi/2], [0.0, -2.0, np.pi/2], [2.0, -1.0, 0.0], [-2.0, -1.0, np.pi], [2.0, 1.0, 0.0], [-2.0, 1.0, np.pi]]
-
-    # initial_states = [[1.0, 1.0, np.pi/2], [1.0, 3.0, -np.pi/2], [1.0, 0.0, np.pi/2], [1.0, 4.0, -np.pi/2], [1.0, 0.5, np.pi/2]]
-    # final_states = [[1.0, 3.0, np.pi/2], [1.0, 1.0, -np.pi/2], [1.0, 4.0, np.pi/2], [1.0, 0.0, -np.pi/2], [1.0, 2.5, np.pi/2]]
+    initial_states = [[-2.0, 0.0, 0.0], [2.0, 0.0, -np.pi]] 
+    final_states = [[2.0, 0.0, 0.0], [-2.0, 0.0, -np.pi]] 
 
     cost_func_params = {
         'Q':  np.array([[5.0, 0.0, 0.0], [0.0, 5.0, 0.0], [0.0, 0.0, .1]]),
@@ -26,7 +23,7 @@ if __name__ == "__main__":
         'kappa': 3 
     }
     mpc_params = {
-        'num_agents': 1,
+        'num_agents': 2,
         'dt': 0.05,
         'N' : 60,
         'rob_dia': 0.3,
@@ -41,7 +38,6 @@ if __name__ == "__main__":
     }
     # obs_traj = np.array(create_dynamic_obstacles(mpc_params['obs_sim_timestep'], int(mpc_params['obs_sim_timestep']/mpc_params['dt'])))
     obs_traj = []
-    # static_obs = [[-1, 2, 1.0], [1, 2, 1.0], [0, 3, 0.5], [0, 1, 0.5]]
     static_obs = [[0.5, 2, 0.4], [1.5, 2, 0.4]]
 
     obs = {"static": static_obs, "dynamic": obs_traj}

@@ -98,7 +98,6 @@ class Environment(object):
             for j in range(len(self.map[0])):
                 if self.map[i][j] == 1:
                     self.obstacles.append((j, i))
-
         self.agent_dict = {}
         self.make_agent_dict()
 

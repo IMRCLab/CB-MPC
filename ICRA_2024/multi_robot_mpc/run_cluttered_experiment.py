@@ -26,7 +26,10 @@ if __name__ == "__main__":
         'dt': 0.05,
         'N' : 20,
         'rob_dia': 0.3,
-        'v_lim': 1.0,
+        'vx_lim': 5.0,
+        'vy_lim': 5.0,
+        'ax_lim': 2.0,
+        'ay_lim': 2.0,
         'omega_lim': 1.0,
         'total_sim_timestep': 500,
         'obs_sim_timestep': 100,
@@ -35,33 +38,31 @@ if __name__ == "__main__":
         'safety_margin': 0.05,
         'goal_tolerence': 0.2
     }
-    # obs_traj = np.array(create_dynamic_obstacles(mpc_params['obs_sim_timestep'], int(mpc_params['obs_sim_timestep']/mpc_params['dt'])))
     obs_traj = []
-    # static_obs = [[-1, 2, 1.0], [1, 2, 1.0], [0, 3, 0.5], [0, 1, 0.5]]
     static_obs = []
 
     obs = {"static": static_obs, "dynamic": obs_traj}
 
-    # print_metrics_summary("CB-MPC_open_12_robot")
-    # visualize_logged_run("PR-MPC_open_12_robot")
-    # save_gif_frame_as_png("cluttered_animation.gif", 36)
-
-    num_trials = 20
-    num_agents = [14]
+    num_trials = 1
+    num_agents = [2]
     for num_agent in num_agents:
         for trial in range(0, 9):
             scenario = "cluttered_" + str(num_agent)
             mpc_params["num_agents"] = num_agent
 
-            map_size = (12,12)
-            num_obstacles = 8
+            map_size = (4,4)
+            num_obstacles = 3
             map = generate_map(map_size, num_obstacles)
 
             while True:
                 task_gen = Task_Generator(num_agent, map, mpc_params["rob_dia"])
                 initial_states, final_states = task_gen.generate_tasks()
                 print("Generated tasks")
-            
+                print('initial states')
+                print(initial_states)
+                print('final states')
+                print(final_states)
+
                 env = Environment(map, map_size, initial_states, final_states)
 
                 cbs = CBS(env)
@@ -81,19 +82,20 @@ if __name__ == "__main__":
                     continue
                 
                 if solution:
+                    print('cbs search solution:')
                     ref = discretize_waypoints(solution, mpc_params["dt"], mpc_params["N"])
-
+                    print('discrete waypoints')
                     mpc = CB_MPC(initial_states, final_states, cost_func_params, obs, mpc_params, scenario, trial, map, ref)
                     mpc.simulate()
                     print("Finished CB-MPC")
                     
-                    mpc = D_MPC(initial_states, final_states, cost_func_params, obs, mpc_params, scenario, trial, map, ref)
-                    mpc.simulate()
-                    print("Finished D-MPC")
+                    # mpc = D_MPC(initial_states, final_states, cost_func_params, obs, mpc_params, scenario, trial, map, ref)
+                    # mpc.simulate()
+                    # print("Finished D-MPC")
 
-                    mpc = PR_MPC(initial_states, final_states, cost_func_params, obs, mpc_params, scenario, trial, map, ref)
-                    mpc.simulate()
-                    print("Finished PR-MPC")
+                    # mpc = PR_MPC(initial_states, final_states, cost_func_params, obs, mpc_params, scenario, trial, map, ref)
+                    # mpc.simulate()
+                    # print("Finished PR-MPC")
 
                 else:
                     print("CBS Solution not found")

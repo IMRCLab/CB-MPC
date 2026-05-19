@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 from draw import Draw_MPC_point_stabilization_v1
 
 if __name__ == "__main__":
-    initial_states = [[4.0, 0.0, 0.0], [2.0, 0.0, -np.pi], [-1.0, -2.0, -np.pi/2], [-1.0, 2.0, -np.pi/2], [1.0, -2.0, np.pi/2], [1.0, 2.0, -np.pi/2], [0.0, -2.0, np.pi/2], [0.0, 2.0, np.pi/2], [-2.0, -1.0, 0.0], [2.0, -1.0, np.pi], [-2.0, 1.0, 0.0], [2.0, 1.0, np.pi]]
-    final_states = [[0.0, 0.0, 0.0], [-2.0, 0.0, -np.pi], [-1.0, 2.0, -np.pi/2], [-1.0, -2.0, -np.pi/2], [1.0, 2.0, -np.pi/2], [1.0, -2.0, np.pi/2], [0.0, 2.0, np.pi/2], [0.0, -2.0, np.pi/2], [2.0, -1.0, 0.0], [-2.0, -1.0, np.pi], [2.0, 1.0, 0.0], [-2.0, 1.0, np.pi]]
+    initial_states = [[4.0, 0.0, 0.0], [2.0, 0.0, -np.pi]] #, [-1.0, -2.0, -np.pi/2], [-1.0, 2.0, -np.pi/2], [1.0, -2.0, np.pi/2], [1.0, 2.0, -np.pi/2], [0.0, -2.0, np.pi/2], [0.0, 2.0, np.pi/2], [-2.0, -1.0, 0.0], [2.0, -1.0, np.pi], [-2.0, 1.0, 0.0], [2.0, 1.0, np.pi]]
+    final_states = [[0.0, 0.0, 0.0], [-2.0, 0.0, -np.pi]] #, [-1.0, 2.0, -np.pi/2], [-1.0, -2.0, -np.pi/2], [1.0, 2.0, -np.pi/2], [1.0, -2.0, np.pi/2], [0.0, 2.0, np.pi/2], [0.0, -2.0, np.pi/2], [2.0, -1.0, 0.0], [-2.0, -1.0, np.pi], [2.0, 1.0, 0.0], [-2.0, 1.0, np.pi]]
 
     # initial_states = [[1.0, 1.0, np.pi/2], [1.0, 3.0, -np.pi/2], [1.0, 0.0, np.pi/2], [1.0, 4.0, -np.pi/2], [1.0, 0.5, np.pi/2]]
     # final_states = [[1.0, 3.0, np.pi/2], [1.0, 1.0, -np.pi/2], [1.0, 4.0, np.pi/2], [1.0, 0.0, -np.pi/2], [1.0, 2.5, np.pi/2]]
@@ -26,7 +26,7 @@ if __name__ == "__main__":
         'kappa': 3 
     }
     mpc_params = {
-        'num_agents': 1,
+        'num_agents': 2,
         'dt': 0.05,
         'N' : 60,
         'rob_dia': 0.3,
@@ -79,11 +79,11 @@ if __name__ == "__main__":
     # print_metrics_summary("CB-MPC_open_12_robot", 1)
     # visualize_logged_run("CB-MPC_open_12_robot", 1)
 
-    mpc = MPC(initial_states, final_states, cost_func_params, obs, mpc_params, scenario, trial, map=map)
-    mpc.simulate()
-
-    # mpc = CB_MPC(initial_states, final_states, cost_func_params, obs, mpc_params, scenario, trial, map=map)
+    # mpc = MPC(initial_states, final_states, cost_func_params, obs, mpc_params, scenario, trial, map=map)
     # mpc.simulate()
+# 
+    mpc = CB_MPC(initial_states, final_states, cost_func_params, obs, mpc_params, scenario, trial, map=map)
+    mpc.simulate()
 
     # mpc = Joint_MPC(initial_states, final_states, cost_func_params, obs, mpc_params, scenario, trial)
     # mpc.simulate()

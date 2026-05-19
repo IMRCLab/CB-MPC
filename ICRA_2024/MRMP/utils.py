@@ -29,10 +29,10 @@ def get_avg_rob_dist(state_cache):
 
     # Get the number of robots and the number of time steps in the trajectory
     num_robots = len(trajectories)
-    
+    print(f'num robots: {num_robots}')
     # Find the minimum number of time steps among all robots' trajectories
     num_timesteps = min(trajectory.shape[0] for trajectory in trajectories)
-
+    print(f'num timesteps: {num_timesteps}')
     # Calculate the distances between all pairs of robots at each time step
     for i in range(num_timesteps):
         for j in range(i + 1, num_timesteps):

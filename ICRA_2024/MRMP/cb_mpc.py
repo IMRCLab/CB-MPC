@@ -7,7 +7,6 @@ import multiprocessing as mp
 import math
 from node import Node
 from utils import *
-import matplotlib.pyplot as plt
 
 class CB_MPC(MPC_Base):
 
@@ -49,10 +48,11 @@ class CB_MPC(MPC_Base):
         return path_length + cost_to_go
 
     def run_single_mpc(self, agent_id, current_state, inter_rob_constraints):
+        state_dim = 4
         # casadi parameters
         opti = ca.Opti()
 
-        opt_states = opti.variable(self.N + 1, 3)
+        opt_states = opti.variable(self.N + 1, state_dim)
         opt_x = opt_states[:,0]
         opt_y = opt_states[:,1]
 
@@ -64,9 +64,8 @@ class CB_MPC(MPC_Base):
         opt_epsilon_r = opti.variable(self.N+1, 1)
         
         # parameters
-        opt_x0 = opti.parameter(3)
-        opt_xs = opti.parameter(3)
-        # self.opt_epsilon_r.append(self.opti.variable(self.N+1, 1))
+        opt_x0 = opti.parameter(state_dim)
+        opt_xs = opti.parameter(state_dim)
 
         # init_condition
         opti.subject_to(opt_states[0, :] == opt_x0.T)
@@ -115,13 +114,13 @@ class CB_MPC(MPC_Base):
         #             rob_obs_constraints_ = ca.sqrt((opt_states[l, 0]-obs_x)**2+(opt_states[l, 1]-obs_y)**2)-1.1 + opt_epsilon_o[l]
         #             opti.subject_to(opti.bounded(0.0, rob_obs_constraints_, ca.inf))
         # if self.map is not None:
-        #     for obs in self.obs["static"]:
-        #         obs_x = obs[0]
-        #         obs_y = obs[1]
-        #         obs_dia = obs[2]
-        #         for l in range(self.N+1):
-        #             rob_obs_constraints_ = ca.sqrt((opt_states[l, 0]-obs_x)**2+(opt_states[l, 1]-obs_y)**2) - obs_dia + opt_epsilon_o[l]
-        #             opti.subject_to(opti.bounded(0.0, rob_obs_constraints_, ca.inf))
+            # for obs in self.obs["static"]:
+                # obs_x = obs[0]
+                # obs_y = obs[1]
+                # obs_dia = obs[2]
+                # for l in range(self.N+1):
+                    # rob_obs_constraints_ = ca.sqrt((opt_states[l, 0]-obs_x)**2+(opt_states[l, 1]-obs_y)**2) - obs_dia + opt_epsilon_o[l]
+                    # opti.subject_to(opti.bounded(0.0, rob_obs_constraints_, ca.inf))
         
         
         # Add inter robot constraints
@@ -176,12 +175,11 @@ class CB_MPC(MPC_Base):
     
     def simulate(self):
         self.state_cache = {agent_id: [] for agent_id in range(self.num_agent)}
-        self.prediction_cache = {agent_id: np.empty((3, self.N+1)) for agent_id in range(self.num_agent)}
+        self.prediction_cache = {agent_id: np.empty((4, self.N+1)) for agent_id in range(self.num_agent)}
         self.control_cache = {agent_id: np.empty((2, self.N)) for agent_id in range(self.num_agent)}
         
         while(not self.are_all_agents_arrived() and self.num_timestep < self.total_sim_timestep):
             time_1 = time.time()
-            # print(self.num_timestep)
             # initial MPC solve
             pool = mp.Pool()
     
@@ -282,5 +280,5 @@ class CB_MPC(MPC_Base):
         self.logger.save_metrics_data()
         
         # Draw function
-        # draw_result = Draw_MPC_point_stabilization_v1(
-        #     rob_dia=self.rob_dia, init_state=self.initial_state, target_state=self.final_state, robot_states=self.state_cache, obs_state=self.obs, map=self.map)
+        draw_result = Draw_MPC_point_stabilization_v1(
+            rob_dia=self.rob_dia, init_state=self.initial_state, target_state=self.final_state, robot_states=self.state_cache, obs_state=self.obs, map=self.map)

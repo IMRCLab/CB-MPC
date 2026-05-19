@@ -11,8 +11,10 @@ class MPC_Base:
         self.dt = mpc_params['dt']
         self.N = mpc_params['N']
         self.rob_dia = mpc_params['rob_dia']
-        self.v_lim = mpc_params['v_lim']
-        self.omega_lim = mpc_params['omega_lim']
+        self.vx_lim = mpc_params['vx_lim']
+        self.vy_lim = mpc_params['vy_lim']
+        self.ax_lim = mpc_params['ax_lim']
+        self.ay_lim = mpc_params['ay_lim']
         self.total_sim_timestep = mpc_params['total_sim_timestep']
         self.goal_tolerence = mpc_params['goal_tolerence']
         self.epsilon_o = mpc_params['epsilon_o']
@@ -26,16 +28,12 @@ class MPC_Base:
 
         self.model = DiffDrive(self.rob_dia)
 
-        # rollout mpc params
-        self.v_rollout_res = 0.2
-        self.omega_rollout_res = 0.2
-
         self.state_cache = {agent_id: [] for agent_id in range(self.num_agent)}
-        self.prediction_cache = {agent_id: np.empty((3, self.N+1)) for agent_id in range(self.num_agent)}
+        self.prediction_cache = {agent_id: np.empty((4, self.N+1)) for agent_id in range(self.num_agent)}
         self.control_cache = {agent_id: np.empty((2, self.N)) for agent_id in range(self.num_agent)}
 
         # variables holding previous solutions
-        self.prev_states = {agent_id: np.zeros((self.N+1, 3)) for agent_id in range(self.num_agent)}
+        self.prev_states = {agent_id: np.zeros((self.N+1, 4)) for agent_id in range(self.num_agent)}
         self.prev_controls = {agent_id: np.zeros((self.N, 2)) for agent_id in range(self.num_agent)}
         self.prev_epsilon_o = {agent_id: np.zeros((self.N+1, 1)) for agent_id in range(self.num_agent)}
         self.prev_epsilon_r = {agent_id: np.zeros((self.N+1, 1)) for agent_id in range(self.num_agent)}
@@ -47,7 +45,6 @@ class MPC_Base:
         self.obs = obs
         self.dyn_obs = obs["dynamic"]
         self.static_obs = obs["static"]
-
         self.ref = ref
         self.map = map
 
@@ -61,6 +58,7 @@ class MPC_Base:
         self.algorithm_name = ""
         self.trial_num = 0
         self.avg_comp_time = []
+        self.total_comp_time = 0.0
         self.max_comp_time = 0.0
         self.traj_length = 0.0
         self.makespan = 0.0
@@ -70,31 +68,27 @@ class MPC_Base:
 
         self.logger = MetricsLogger()
     
+    # Euler integration
     def shift_movement(self, x0, u, x_n, f):
         f_value = f(x0, u[0])
         st = x0 + self.dt*f_value
         u_end = np.concatenate((u[1:], u[-1:]))
         x_n = np.concatenate((x_n[1:], x_n[-1:]))
-
         return st, u_end, x_n
 
-    def prediction_state(self, x0, u, dt, N):
-        # define prediction horizon function
-        states = np.zeros((N+1, 3))
-        states[0, :] = x0
-        for i in range(N):
-            states[i+1, 0] = states[i, 0] + u[i, 0] * np.cos(states[i, 2]) * dt
-            states[i+1, 1] = states[i, 1] + u[i, 0] * np.sin(states[i, 2]) * dt
-            states[i+1, 2] = states[i, 2] + u[i, 1] * dt
-        return states
-
     # create model
-    def f(self, x_, u_): return ca.vertcat(
-        *[u_[0]*ca.cos(x_[2]), u_[0]*ca.sin(x_[2]), u_[1]])
-
-    def f_np(self, x_, u_): return np.array(
-        [u_[0]*np.cos(x_[2]), u_[0]*np.sin(x_[2]), u_[1]])
+    def f(self, x_, u_):
+        return ca.vertcat(
+            x_[2],   # vx
+            x_[3],   # vy
+            u_[0],   # ax
+            u_[1]    # ay
+        )
     
+    # for double integrator
+    def f_np(self, x_, u_): return np.array(
+        [x_[2], x_[3], u_[0], u_[1]])
+
     def collision_cost(self, x0, x1):
         """
         Cost of collision between two robot_state

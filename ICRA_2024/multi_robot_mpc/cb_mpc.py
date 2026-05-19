@@ -8,6 +8,21 @@ import math
 from node import Node
 from utils import *
 import matplotlib.pyplot as plt
+import os
+import sys
+
+class SuppressOutput:
+    def __enter__(self):
+        self._stdout = sys.stdout
+        self._stderr = sys.stderr
+        sys.stdout = open(os.devnull, "w")
+        sys.stderr = open(os.devnull, "w")
+
+    def __exit__(self, *args):
+        sys.stdout.close()
+        sys.stderr.close()
+        sys.stdout = self._stdout
+        sys.stderr = self._stderr
 
 class CB_MPC(MPC_Base):
 
@@ -24,7 +39,7 @@ class CB_MPC(MPC_Base):
                 for index, (wp_1, wp_2) in enumerate(zip(agent_1_traj, agent_2_traj)):
                     distance = math.sqrt((wp_1[0] - wp_2[0])**2 + (wp_1[1] - wp_2[1])**2)
                     if distance < self.rob_dia:
-                        # print("Collision detected between " + str(i) + " and " + str(j) + " at index " + str(index))
+                        print("Collision detected between " + str(i) + " and " + str(j) + " at index " + str(index))
                         conflict_list.append((i, j, index))
                         break
         
@@ -49,24 +64,25 @@ class CB_MPC(MPC_Base):
         return path_length + cost_to_go
 
     def run_single_mpc(self, agent_id, current_state, inter_rob_constraints):
+        state_dim = 4
         # casadi parameters
         opti = ca.Opti()
-
-        opt_states = opti.variable(self.N + 1, 3)
+        opt_states = opti.variable(self.N + 1, state_dim)
         opt_x = opt_states[:,0]
         opt_y = opt_states[:,1]
+        opt_vx = opt_states[:,2]
+        opt_vy = opt_states[:,3]
 
         opt_controls = opti.variable(self.N, 2)
-        v = opt_controls[:,0]
-        omega = opt_controls[:,1]
+        ax = opt_controls[:,0]
+        ay = opt_controls[:,1]
         
         opt_epsilon_o = opti.variable(self.N+1, 1)
         opt_epsilon_r = opti.variable(self.N+1, 1)
         
         # parameters
-        opt_x0 = opti.parameter(3)
-        opt_xs = opti.parameter(3)
-        # self.opt_epsilon_r.append(self.opti.variable(self.N+1, 1))
+        opt_x0 = opti.parameter(state_dim)
+        opt_xs = opti.parameter(state_dim)
 
         # init_condition
         opti.subject_to(opt_states[0, :] == opt_x0.T)
@@ -84,7 +100,6 @@ class CB_MPC(MPC_Base):
         Q = self.cost_func_params['Q']
         R = self.cost_func_params['R']
         P = self.cost_func_params['P']
-     
         for k in range(self.N):
             if self.ref:
                 ref_seg = self.extract_trajectory_segment(current_state)
@@ -102,28 +117,54 @@ class CB_MPC(MPC_Base):
         # boundrary and control conditions
         opti.subject_to(opti.bounded(-5, opt_x, 12))
         opti.subject_to(opti.bounded(-5, opt_y, 12))
-        opti.subject_to(opti.bounded(-self.v_lim, v, self.v_lim))
-        opti.subject_to(opti.bounded(-self.omega_lim, omega, self.omega_lim))        
+        # velocity bounds
+        opti.subject_to(opti.bounded(-self.vx_lim, opt_vx, self.vx_lim))
+        opti.subject_to(opti.bounded(-self.vy_lim, opt_vy, self.vy_lim))
+
+        # acceleration bounds (control inputs)
+        opti.subject_to(opti.bounded(-self.ax_lim, ax, self.ax_lim))
+        opti.subject_to(opti.bounded(-self.ay_lim, ay, self.ay_lim))
 
         # static obstacle constraint
-        # if self.map is not None:
-        #     obstacles = get_obstacle_coordinates(self.map, current_state)
-        #     for obs in obstacles:
-        #         obs_x = obs[0]
-        #         obs_y = obs[1]
-        #         for l in range(self.N+1):
-        #             rob_obs_constraints_ = ca.sqrt((opt_states[l, 0]-obs_x)**2+(opt_states[l, 1]-obs_y)**2)-1.1 + opt_epsilon_o[l]
-        #             opti.subject_to(opti.bounded(0.0, rob_obs_constraints_, ca.inf))
-        # if self.map is not None:
-        #     for obs in self.obs["static"]:
-        #         obs_x = obs[0]
-        #         obs_y = obs[1]
-        #         obs_dia = obs[2]
-        #         for l in range(self.N+1):
-        #             rob_obs_constraints_ = ca.sqrt((opt_states[l, 0]-obs_x)**2+(opt_states[l, 1]-obs_y)**2) - obs_dia + opt_epsilon_o[l]
-        #             opti.subject_to(opti.bounded(0.0, rob_obs_constraints_, ca.inf))
-        
-        
+        for obs in self.obs["static"]:
+            for l in range(self.N+1):
+                x = opt_states[l,0]
+                y = opt_states[l,1]
+                # spherical obstacles
+                if obs["type"] == "sphere":
+                    obs_x = obs["x"]
+                    obs_y = obs["y"]
+                    radius = obs["radius"]
+                    rob_obs_constraints_ = (
+                        ca.sqrt(
+                            (x-obs_x)**2 +
+                            (y-obs_y)**2
+                        )
+                        - radius
+                        + opt_epsilon_o[l]
+                    )
+                # rectangle/box
+                elif obs["type"] == "box":
+                    cx = obs["x"]
+                    cy = obs["y"]
+
+                    width = obs["width"]
+                    height = obs["height"]
+
+                    xmin = cx - width/2
+                    xmax = cx + width/2
+                    ymin = cy - height/2
+                    ymax = cy + height/2
+
+                    dx = ca.fmax(ca.fmax(xmin-x,0),x-xmax)
+                    dy = ca.fmax(ca.fmax(ymin-y,0),y-ymax)
+                    dist = ca.sqrt(dx**2 + dy**2)
+                    rob_obs_constraints_ = (
+                        dist
+                        - self.rob_dia
+                        + opt_epsilon_o[l])
+        opti.subject_to(opti.bounded(0.0,rob_obs_constraints_,ca.inf))
+
         # Add inter robot constraints
         if inter_rob_constraints:
             for constraint in inter_rob_constraints:
@@ -142,6 +183,7 @@ class CB_MPC(MPC_Base):
                             'ipopt.acceptable_tol': 1e-8, 'ipopt.acceptable_obj_change_tol': 1e-6, 'ipopt.warm_start_init_point': 'yes', 'ipopt.warm_start_bound_push': 1e-9,
                             'ipopt.warm_start_bound_frac': 1e-9, 'ipopt.warm_start_slack_bound_frac': 1e-9, 'ipopt.warm_start_slack_bound_push': 1e-9, 'ipopt.warm_start_slack_bound_push': 1e-9, 'ipopt.warm_start_mult_bound_push': 1e-9}
 
+        
         opti.solver('ipopt', opts_setting)
         opti.set_value(opt_xs, self.final_state[agent_id])
         
@@ -156,9 +198,10 @@ class CB_MPC(MPC_Base):
 
         # solve the optimization problem
         t_ = time.time()
-        sol = opti.solve()
+        with SuppressOutput():
+            sol = opti.solve()
         solve_time = time.time() - t_
-        # print("Agent " + str(agent_id) + " Solve Time: " + str(solve_time))
+        print("Agent " + str(agent_id) + " Solve Time: " + str(solve_time))
 
         # obtain the control input
         u_res = sol.value(opt_controls)
@@ -176,15 +219,13 @@ class CB_MPC(MPC_Base):
     
     def simulate(self):
         self.state_cache = {agent_id: [] for agent_id in range(self.num_agent)}
-        self.prediction_cache = {agent_id: np.empty((3, self.N+1)) for agent_id in range(self.num_agent)}
+        self.prediction_cache = {agent_id: np.empty((4, self.N+1)) for agent_id in range(self.num_agent)} # 4
         self.control_cache = {agent_id: np.empty((2, self.N)) for agent_id in range(self.num_agent)}
         
         while(not self.are_all_agents_arrived() and self.num_timestep < self.total_sim_timestep):
             time_1 = time.time()
-            # print(self.num_timestep)
             # initial MPC solve
             pool = mp.Pool()
-    
             # Apply MPC solve to each agent in parallel
             results = pool.starmap(self.run_single_mpc, [(agent_id, np.array(self.current_state[agent_id]), []) for agent_id in range(self.num_agent)])
     
@@ -195,7 +236,6 @@ class CB_MPC(MPC_Base):
             for agent_id, result in enumerate(results):
                 u, next_states_pred = result
                 current_state = np.array(self.current_state[agent_id])
-                # next_state, u0, next_states = self.shift_movement(current_state, u, next_states_pred, self.f_np)
 
                 self.prediction_cache[agent_id] = next_states_pred
                 self.control_cache[agent_id] = u
@@ -215,18 +255,14 @@ class CB_MPC(MPC_Base):
             # loop until conflict tree is empty
             num_rob_constraints = 0.0
             while conflict_tree:
-                # print(len(conflict_tree))
                 p = get_best_node(conflict_tree)
-                # conflict_tree.remove(p)
                 conflict_list = self.find_collisions(p)
 
                 # apply controls if there are no collisions and break out of the conflict resolution loop
                 if not conflict_list:
                     for agent_id in range(self.num_agent):
                         current_state = np.array(self.current_state[agent_id])
-                        # u = self.control_cache[agent_id]
                         u = p.control_solution[agent_id]
-                        # next_states_pred = self.prediction_cache[agent_id]
                         next_states_pred = p.state_solution[agent_id]
 
                         next_state, u0, next_states = self.shift_movement(current_state, u, next_states_pred, self.f_np)
@@ -261,26 +297,21 @@ class CB_MPC(MPC_Base):
 
                         conflict_tree.append(new_node)
             time_2 = time.time()
-            self.avg_comp_time.append(time_2-time_1)
+            iter_time = time_2 - time_1
+            self.avg_comp_time.append(iter_time)
+            self.total_comp_time += iter_time
             
-        avg_comp_time = 0.0
         if self.is_solution_valid(self.state_cache):
             print("Executed solution is GOOD!")
-            avg_comp_time = (sum(self.avg_comp_time) / len(self.avg_comp_time)) / self.num_agent
             self.max_comp_time = max(self.avg_comp_time)
-            self.c_avg = (sum(self.c_avg) / len(self.c_avg)) / self.num_agent
             self.traj_length = get_traj_length(self.state_cache)
             self.makespan = self.num_timestep * self.dt
-            self.avg_rob_dist = get_avg_rob_dist(self.state_cache)
             self.success = True
         else:
             self.success = False
         
         run_description = "CB-MPC_" + self.scenario 
-        self.logger.log_metrics(run_description, self.trial, self.state_cache, self.map, self.initial_state, self.final_state, avg_comp_time, self.max_comp_time, self.traj_length, self.makespan, self.avg_rob_dist, self.c_avg, self.success, self.execution_collision, self.max_time_reached)
+        self.logger.log_metrics(run_description, self.trial, self.state_cache, self.map, self.initial_state, self.final_state, self.total_comp_time, self.max_comp_time, self.traj_length, self.makespan, self.avg_rob_dist, self.c_avg, self.success, self.execution_collision, self.max_time_reached)
         self.logger.print_metrics_summary()
-        self.logger.save_metrics_data()
+        self.logger.save_state_cache(self.state_cache, "output.yaml")
         
-        # Draw function
-        draw_result = Draw_MPC_point_stabilization_v1(
-            rob_dia=self.rob_dia, init_state=self.initial_state, target_state=self.final_state, robot_states=self.state_cache, obs_state=self.obs, map=self.map)

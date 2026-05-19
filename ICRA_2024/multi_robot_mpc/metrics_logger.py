@@ -1,13 +1,12 @@
-import matplotlib.pyplot as plt
 import pickle
 import os
-import numpy as np
+import yaml
 
 class MetricsLogger:
     def __init__(self):
         self.metrics_data = {}
 
-    def log_metrics(self, run_description, trial_num, state_cache, map, initial_state, final_state, avg_comp_time, max_comp_time, traj_length, makespan, avg_rob_dist, c_avg, success, execution_collision, max_time_reached):
+    def log_metrics(self, run_description, trial_num, state_cache, map, initial_state, final_state, total_comp_time, max_comp_time, traj_length, makespan, avg_rob_dist, c_avg, success, execution_collision, max_time_reached):
         # Log the metrics for a specific algorithm trial
         if run_description not in self.metrics_data:
             self.metrics_data[run_description] = {}
@@ -31,7 +30,7 @@ class MetricsLogger:
         self.metrics_data[run_description][trial_num]["initial_state"] = initial_state
         self.metrics_data[run_description][trial_num]["final_state"] = final_state
         self.metrics_data[run_description][trial_num]["map"] = map
-        self.metrics_data[run_description][trial_num]["avg_comp_time"] = avg_comp_time
+        self.metrics_data[run_description][trial_num]["total_comp_time"] = total_comp_time
         self.metrics_data[run_description][trial_num]["max_comp_time"] = max_comp_time
         self.metrics_data[run_description][trial_num]["traj_length"] = traj_length
         self.metrics_data[run_description][trial_num]["makespan"] = makespan
@@ -45,29 +44,21 @@ class MetricsLogger:
         # Returns the collected metrics data
         for algorithm_name, trials in self.metrics_data.items():
             for trial_num, metrics in trials.items():
-                avg_computation_time = metrics["avg_comp_time"]
+                total_computation_time = metrics["total_comp_time"]
                 max_computation_time = metrics["max_comp_time"]
                 traj_length = metrics["traj_length"]
                 makespan = metrics["makespan"]
-                avg_rob_dist = metrics["avg_rob_dist"]
                 success = metrics["success"]
-                c_avg = metrics["c_avg"]
                 execution_collision = metrics["execution_collision"]
                 max_time_reached = metrics["max_time_reached"]
 
                 if(success):
-                    print("Avg Comp Time:")
-                    print(avg_computation_time)
-                    print("Max Comp time:")
-                    print(max_computation_time)
+                    print("Total Comp Time:")
+                    print(total_computation_time)
                     print("Traj Length:")
                     print(traj_length)
                     print("Makespan:")
                     print(makespan)
-                    print("Avg Rob Distance:")
-                    print(avg_rob_dist)
-                    print("C_avg:")
-                    print(c_avg)
                     print("Success:")
                     print(bool(success))
                     print("===================")
@@ -96,5 +87,22 @@ class MetricsLogger:
                 file_path = os.path.join(run_folder, file_name)
                 with open(file_path, 'wb') as file:
                     pickle.dump(metrics, file)
+
+    def save_state_cache(self, state_cache, filename):
+        result = []
+
+        for agent_id, traj in state_cache.items():
+            agent_entry = {"states": []}
+
+            for state in traj:
+                # convert numpy -> python list
+                agent_entry["states"].append(state.tolist())
+
+            result.append(agent_entry)
+
+        data = {"result": result}
+
+        with open(filename, "w") as f:
+            yaml.dump(data, f, default_flow_style=False)
 
 

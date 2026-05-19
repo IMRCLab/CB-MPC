@@ -46,9 +46,9 @@ def get_traj_length(state_cache):
     traj_len = 0.0
     for agent_id, traj in state_cache.items():
         for i in range(1, len(traj)):
-            x1, y1, theta1 = traj[i - 1]
-            x2, y2, theta2 = traj[i]
-            
+            x1, y1, vx1, vy1 = traj[i - 1]
+            x2, y2, vx2, vy2 = traj[i]
+            # Euclidean distance on the position
             dx = math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
             traj_len += dx
 
