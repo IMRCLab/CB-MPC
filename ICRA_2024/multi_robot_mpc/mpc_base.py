@@ -11,6 +11,7 @@ class MPC_Base:
         self.dt = mpc_params['dt']
         self.N = mpc_params['N']
         self.rob_dia = mpc_params['rob_dia']
+        self.rob_radius = mpc_params['rob_radius']
         self.vx_lim = mpc_params['vx_lim']
         self.vy_lim = mpc_params['vy_lim']
         self.ax_lim = mpc_params['ax_lim']

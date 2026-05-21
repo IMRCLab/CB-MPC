@@ -13,9 +13,9 @@ if __name__ == "__main__":
     cost_func_params = {
         'Q':  np.array([[5.0, 0.0, 0.0, 0.0], 
                         [0.0, 5.0, 0.0, 0.0], 
-                        [1.0, 0.0, 0.0, 0.0], 
-                        [0.0, 1.0, 0.0, 0.0]]),
-        'R': np.array([[7.5, 0.0], [0.0, 5.5]]), # 7.5, 0.05
+                        [2.0, 0.0, 0.0, 0.0], 
+                        [0.0, 2.0, 0.0, 0.0]]),
+        'R': np.array([[5.5, 0.0], [0.0, 5.5]]),
         'P': np.array([[15.0, 0.0], [0.0, 15.0]]),
         'Qc': 8,
         'kappa': 3 
@@ -28,10 +28,10 @@ if __name__ == "__main__":
         'ax_lim': 2.0,
         'ay_lim': 2.0,
         'total_sim_timestep': 500,
-        'obs_sim_timestep': 100,
-        'epsilon_o': 0.05,
-        'epsilon_r': 0.05,
-        'safety_margin': 0.05,
+        'obs_sim_timestep': 200,
+        'epsilon_o': 0.1,
+        'epsilon_r': 0.1,
+        'safety_margin': 0.1,
         'goal_tolerence': 0.5
     }
 
@@ -87,6 +87,7 @@ if __name__ == "__main__":
     # update mpc params
     mpc_params['num_agents'] = num_agents
     mpc_params['rob_dia'] = 0.50 # robot diameter
+    mpc_params['rob_radius'] = 0.25
 
     for trial in range(0, num_trials):
         mpc_params["num_agents"] = num_agents
@@ -95,7 +96,7 @@ if __name__ == "__main__":
             task_gen = Task_Generator(num_agents, map, mpc_params["rob_dia"])
             env = Environment(map, map_size, initial_states, final_states)
             cbs = CBS(env)
-            cbs_timeout = 60 # in seconds
+            cbs_timeout = 10 # in seconds
             start_time = time.time()
             solution = None
             

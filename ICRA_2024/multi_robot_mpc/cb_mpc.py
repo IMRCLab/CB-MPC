@@ -143,28 +143,39 @@ class CB_MPC(MPC_Base):
                         - radius
                         + opt_epsilon_o[l]
                     )
+                    opti.subject_to(opti.bounded(0.0,rob_obs_constraints_,ca.inf))
                 # rectangle/box
                 elif obs["type"] == "box":
-                    cx = obs["x"]
-                    cy = obs["y"]
+                    # cx = obs["x"] 
+                    # cy = obs["y"] 
+                    # width = obs["width"] 
+                    # height = obs["height"]
+                    # xmin = cx - width/2  - self.rob_radius
+                    # xmax = cx + width/2  + self.rob_radius
+                    # ymin = cy - height/2 - self.rob_radius
+                    # ymax = cy + height/2 + self.rob_radius
 
-                    width = obs["width"]
-                    height = obs["height"]
+                    # dx = ca.fmax(xmin - x, x - xmax)
+                    # dy = ca.fmax(ymin - y, y - ymax)
+                    # dist2 = dx*dx + dy*dy
+                    # opti.subject_to(dist2 >= self.safety_margin**2)
+                    obs_x = obs["x"]
+                    obs_y = obs["y"]
+                    w = obs["width"]
+                    h = obs["height"]
 
-                    xmin = cx - width/2
-                    xmax = cx + width/2
-                    ymin = cy - height/2
-                    ymax = cy + height/2
-
-                    dx = ca.fmax(ca.fmax(xmin-x,0),x-xmax)
-                    dy = ca.fmax(ca.fmax(ymin-y,0),y-ymax)
-                    dist = ca.sqrt(dx**2 + dy**2)
+                    box_radius = ca.sqrt((w/2)**2 + (h/2)**2)
+                    safe_r = (
+                        box_radius
+                        + self.rob_radius
+                        + self.safety_margin
+                    ) 
                     rob_obs_constraints_ = (
-                        dist
-                        - self.rob_dia
-                        + opt_epsilon_o[l])
-        opti.subject_to(opti.bounded(0.0,rob_obs_constraints_,ca.inf))
-
+                        ca.sqrt((x - obs_x)**2 + (y - obs_y)**2)
+                        - safe_r
+                        + opt_epsilon_o[l]
+                    )
+                    opti.subject_to(opti.bounded(0.0, rob_obs_constraints_, ca.inf))
         # Add inter robot constraints
         if inter_rob_constraints:
             for constraint in inter_rob_constraints:
@@ -174,10 +185,9 @@ class CB_MPC(MPC_Base):
                     continue
                         
                 other_rob = self.prediction_cache[other_rob]
-                
-                rob_rob_constraints_ = ca.sqrt((opt_states[collision_index:-1,0]-other_rob[collision_index:-1,0])**2 + (opt_states[collision_index:-1,1]-other_rob[collision_index:-1,1])**2) - self.rob_dia - self.safety_margin + opt_epsilon_r[collision_index:-1]
-
-                opti.subject_to(opti.bounded(0.0, rob_rob_constraints_, ca.inf))
+                if collision_index < self.N - 1:
+                    rob_rob_constraints_ = ca.sqrt((opt_states[collision_index:-1,0]-other_rob[collision_index:-1,0])**2 + (opt_states[collision_index:-1,1]-other_rob[collision_index:-1,1])**2) - self.rob_dia - self.safety_margin + opt_epsilon_r[collision_index:-1]
+                    opti.subject_to(opti.bounded(0.0, rob_rob_constraints_, ca.inf))
 
         opts_setting = {'ipopt.max_iter': 1000, 'ipopt.print_level': 0, 'print_time': 0,
                             'ipopt.acceptable_tol': 1e-8, 'ipopt.acceptable_obj_change_tol': 1e-6, 'ipopt.warm_start_init_point': 'yes', 'ipopt.warm_start_bound_push': 1e-9,
@@ -198,6 +208,8 @@ class CB_MPC(MPC_Base):
 
         # solve the optimization problem
         t_ = time.time()
+        # g_sym = opti.g
+        # print(g_sym)
         with SuppressOutput():
             sol = opti.solve()
         solve_time = time.time() - t_
@@ -208,7 +220,6 @@ class CB_MPC(MPC_Base):
         next_states_pred = sol.value(opt_states)
         eps_o = sol.value(opt_epsilon_o)
         eps_r = sol.value(opt_epsilon_r)
-
         self.prev_states[agent_id] = next_states_pred
         self.prev_controls[agent_id] = u_res
         self.prev_epsilon_o[agent_id] = eps_o 
