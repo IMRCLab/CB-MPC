@@ -2,20 +2,14 @@ import casadi as ca
 import numpy as np
 from models import DiffDrive
 import math 
-import matplotlib.pyplot as plt
 from metrics_logger import MetricsLogger
+from robot_params import create_dynamics
 
 class MPC_Base:
-    def __init__(self, initial_state, final_state, cost_func_params, obs, mpc_params, scenario, trial, map=None, ref=None):
+    def __init__(self, initial_state, final_state, cost_func_params, obs, mpc_params, robot_params, scenario, trial, map=None, ref=None):
         self.num_agent = mpc_params['num_agents']
         self.dt = mpc_params['dt']
         self.N = mpc_params['N']
-        self.rob_dia = mpc_params['rob_dia']
-        self.rob_radius = mpc_params['rob_radius']
-        self.vx_lim = mpc_params['vx_lim']
-        self.vy_lim = mpc_params['vy_lim']
-        self.ax_lim = mpc_params['ax_lim']
-        self.ay_lim = mpc_params['ay_lim']
         self.total_sim_timestep = mpc_params['total_sim_timestep']
         self.goal_tolerence = mpc_params['goal_tolerence']
         self.epsilon_o = mpc_params['epsilon_o']
@@ -26,16 +20,22 @@ class MPC_Base:
         self.cost_func_params = cost_func_params
         self.scenario = scenario
         self.trial = trial
-
+        self.robot_params = robot_params
+        # robot related
+        self.rob_dia = mpc_params['rob_dia'] # TO DO!
+        self.rob_radius = mpc_params['rob_radius'] # TO DO!
+        self.dynamics = create_dynamics(self.robot_params)
         self.model = DiffDrive(self.rob_dia)
 
+        dim_state = self.robot_params.dim_state
+        dim_action = self.robot_params.dim_action
         self.state_cache = {agent_id: [] for agent_id in range(self.num_agent)}
-        self.prediction_cache = {agent_id: np.empty((4, self.N+1)) for agent_id in range(self.num_agent)}
-        self.control_cache = {agent_id: np.empty((2, self.N)) for agent_id in range(self.num_agent)}
+        self.prediction_cache = {agent_id: np.empty((dim_state, self.N+1)) for agent_id in range(self.num_agent)}
+        self.control_cache = {agent_id: np.empty((dim_action, self.N)) for agent_id in range(self.num_agent)}
 
         # variables holding previous solutions
-        self.prev_states = {agent_id: np.zeros((self.N+1, 4)) for agent_id in range(self.num_agent)}
-        self.prev_controls = {agent_id: np.zeros((self.N, 2)) for agent_id in range(self.num_agent)}
+        self.prev_states = {agent_id: np.zeros((self.N+1, dim_state)) for agent_id in range(self.num_agent)}
+        self.prev_controls = {agent_id: np.zeros((self.N, dim_action)) for agent_id in range(self.num_agent)}
         self.prev_epsilon_o = {agent_id: np.zeros((self.N+1, 1)) for agent_id in range(self.num_agent)}
         self.prev_epsilon_r = {agent_id: np.zeros((self.N+1, 1)) for agent_id in range(self.num_agent)}
         
@@ -68,7 +68,7 @@ class MPC_Base:
         self.success = False
 
         self.logger = MetricsLogger()
-    
+
     # Euler integration
     def shift_movement(self, x0, u, x_n, f):
         f_value = f(x0, u[0])
@@ -78,18 +78,12 @@ class MPC_Base:
         return st, u_end, x_n
 
     # create model
-    def f(self, x_, u_):
-        return ca.vertcat(
-            x_[2],   # vx
-            x_[3],   # vy
-            u_[0],   # ax
-            u_[1]    # ay
-        )
-    
-    # for double integrator
-    def f_np(self, x_, u_): return np.array(
-        [x_[2], x_[3], u_[0], u_[1]])
+    def f(self, x, u):
+        return self.dynamics.f(x, u)
 
+    def f_np(self, x, u):
+        return self.dynamics.f_np(x, u)
+    
     def collision_cost(self, x0, x1):
         """
         Cost of collision between two robot_state

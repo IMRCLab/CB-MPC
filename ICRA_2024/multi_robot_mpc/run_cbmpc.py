@@ -7,14 +7,18 @@ from utils import *
 import time
 import yaml
 from pathlib import Path
+from robot_params import load_robot_params
 
 if __name__ == "__main__":
 
     cost_func_params = {
-        'Q':  np.array([[5.0, 0.0, 0.0, 0.0], 
-                        [0.0, 5.0, 0.0, 0.0], 
-                        [2.0, 0.0, 0.0, 0.0], 
-                        [0.0, 2.0, 0.0, 0.0]]),
+        # 'Q':  np.array([[5.0, 0.0, 0.0, 0.0], 
+        #                 [0.0, 5.0, 0.0, 0.0], 
+        #                 [2.0, 0.0, 0.0, 0.0], 
+        #                 [0.0, 2.0, 0.0, 0.0]]),
+        'Q':  np.array([[5.0, 0.0, 0.0], 
+                        [0.0, 5.0, 0.0], 
+                        [0.0, 0.0, 0.5]]),
         'R': np.array([[5.5, 0.0], [0.0, 5.5]]),
         'P': np.array([[15.0, 0.0], [0.0, 15.0]]),
         'Qc': 8,
@@ -36,7 +40,7 @@ if __name__ == "__main__":
     }
 
     num_trials = 1
-    path = "../instances/test.yaml"
+    path = "../instances/circle2_unicycle.yaml"
     scenario = Path(path).stem 
     # read your input file
     with open(path, "r") as f:
@@ -86,8 +90,12 @@ if __name__ == "__main__":
         for robot in data["robots"]]
     # update mpc params
     mpc_params['num_agents'] = num_agents
-    mpc_params['rob_dia'] = 0.50 # robot diameter
+    mpc_params['rob_dia'] = 0.50 # TO DO!
     mpc_params['rob_radius'] = 0.25
+    # update robot config params
+    robot_type = data['robots'][0]["type"] # assumes homogeneous robots
+    robot_config_file = "../robot_types/" + robot_type + ".yaml"
+    robot_params = load_robot_params(robot_config_file)
 
     for trial in range(0, num_trials):
         mpc_params["num_agents"] = num_agents
@@ -111,7 +119,7 @@ if __name__ == "__main__":
                 print('Discrete Solution Found')
                 ref = discretize_waypoints(solution, mpc_params["dt"], mpc_params["N"])
                 print('MPC Running')
-                mpc = CB_MPC(initial_states, final_states, cost_func_params, obs, mpc_params, scenario, trial, map, ref)
+                mpc = CB_MPC(initial_states, final_states, cost_func_params, obs, mpc_params, robot_params, scenario, trial, map, ref)
                 mpc.simulate()
                 print("Finished CB-MPC")
                 

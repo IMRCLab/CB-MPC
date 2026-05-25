@@ -1,0 +1,14 @@
+environment:
+  min: [0, 0]
+  max: [11, 11]
+  obstacles:
+    - type: box # 1
+      center: [4., 4.]
+      size: [0.5, 0.5]
+robots:
+  - type: unicycle_first_order 
+    start: [9, 3, 3.14] 
+    goal: [2, 3, 3.14] 
+  - type: unicycle_first_order
+    start: [9, 7, 3.14]
+    goal: [2, 8, 3.14]

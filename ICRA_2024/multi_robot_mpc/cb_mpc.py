@@ -37,6 +37,7 @@ class CB_MPC(MPC_Base):
                 agent_2_traj = agent_predictions[j]
 
                 for index, (wp_1, wp_2) in enumerate(zip(agent_1_traj, agent_2_traj)):
+                    # always on position
                     distance = math.sqrt((wp_1[0] - wp_2[0])**2 + (wp_1[1] - wp_2[1])**2)
                     if distance < self.rob_dia:
                         print("Collision detected between " + str(i) + " and " + str(j) + " at index " + str(index))
@@ -62,27 +63,24 @@ class CB_MPC(MPC_Base):
         cost_to_go += distance_to_goal
             
         return path_length + cost_to_go
+    # bounds for the optimization
+    def add_bounds(self, opti, X, U):
+        self.dynamics.state_bounds(opti, X, self.robot_params)
+        self.dynamics.control_bounds(opti, U, self.robot_params)
 
     def run_single_mpc(self, agent_id, current_state, inter_rob_constraints):
-        state_dim = 4
+        dim_state = self.robot_params.dim_state
+        dim_action = self.robot_params.dim_action
         # casadi parameters
         opti = ca.Opti()
-        opt_states = opti.variable(self.N + 1, state_dim)
-        opt_x = opt_states[:,0]
-        opt_y = opt_states[:,1]
-        opt_vx = opt_states[:,2]
-        opt_vy = opt_states[:,3]
-
-        opt_controls = opti.variable(self.N, 2)
-        ax = opt_controls[:,0]
-        ay = opt_controls[:,1]
-        
+        opt_states = opti.variable(self.N + 1, dim_state)
+        opt_controls = opti.variable(self.N, dim_action)
+        # safety margins
         opt_epsilon_o = opti.variable(self.N+1, 1)
         opt_epsilon_r = opti.variable(self.N+1, 1)
-        
         # parameters
-        opt_x0 = opti.parameter(state_dim)
-        opt_xs = opti.parameter(state_dim)
+        opt_x0 = opti.parameter(dim_state)
+        opt_xs = opti.parameter(dim_state)
 
         # init_condition
         opti.subject_to(opt_states[0, :] == opt_x0.T)
@@ -113,18 +111,8 @@ class CB_MPC(MPC_Base):
 
         total_cost = robot_cost + 1000 * collision_cost
         opti.minimize(total_cost)
-
         # boundrary and control conditions
-        opti.subject_to(opti.bounded(-5, opt_x, 12))
-        opti.subject_to(opti.bounded(-5, opt_y, 12))
-        # velocity bounds
-        opti.subject_to(opti.bounded(-self.vx_lim, opt_vx, self.vx_lim))
-        opti.subject_to(opti.bounded(-self.vy_lim, opt_vy, self.vy_lim))
-
-        # acceleration bounds (control inputs)
-        opti.subject_to(opti.bounded(-self.ax_lim, ax, self.ax_lim))
-        opti.subject_to(opti.bounded(-self.ay_lim, ay, self.ay_lim))
-
+        self.add_bounds(opti, opt_states, opt_controls)
         # static obstacle constraint
         for obs in self.obs["static"]:
             for l in range(self.N+1):
@@ -167,7 +155,7 @@ class CB_MPC(MPC_Base):
                     box_radius = ca.sqrt((w/2)**2 + (h/2)**2)
                     safe_r = (
                         box_radius
-                        + self.rob_radius
+                        + self.rob_radius # TO DO!
                         + self.safety_margin
                     ) 
                     rob_obs_constraints_ = (
@@ -208,8 +196,6 @@ class CB_MPC(MPC_Base):
 
         # solve the optimization problem
         t_ = time.time()
-        # g_sym = opti.g
-        # print(g_sym)
         with SuppressOutput():
             sol = opti.solve()
         solve_time = time.time() - t_
@@ -230,8 +216,8 @@ class CB_MPC(MPC_Base):
     
     def simulate(self):
         self.state_cache = {agent_id: [] for agent_id in range(self.num_agent)}
-        self.prediction_cache = {agent_id: np.empty((4, self.N+1)) for agent_id in range(self.num_agent)} # 4
-        self.control_cache = {agent_id: np.empty((2, self.N)) for agent_id in range(self.num_agent)}
+        self.prediction_cache = {agent_id: np.empty((self.robot_params.dim_state, self.N+1)) for agent_id in range(self.num_agent)} 
+        self.control_cache = {agent_id: np.empty((self.robot_params.dim_action, self.N)) for agent_id in range(self.num_agent)}
         
         while(not self.are_all_agents_arrived() and self.num_timestep < self.total_sim_timestep):
             time_1 = time.time()
